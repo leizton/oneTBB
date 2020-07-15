@@ -635,22 +635,12 @@ protected:
         void dismiss() { my_node = NULL; }
     };
 
-#if __TBB_CPP11_RVALUE_REF_PRESENT && __TBB_CPP11_VARIADIC_TEMPLATES_PRESENT
     template<typename... Args>
-    static node* create_node(node_allocator_type& allocator, Args&&... args)
-#else
-    template<typename Arg1, typename Arg2>
-    static node* create_node(node_allocator_type& allocator, __TBB_FORWARDING_REF(Arg1) arg1, __TBB_FORWARDING_REF(Arg2) arg2)
-#endif
-    {
+    static node* create_node(node_allocator_type& allocator, Args&&... args) {
         node* node_ptr = node_allocator_traits::allocate(allocator, 1);
         node_scoped_guard guard(node_ptr, allocator);
         node_allocator_traits::construct(allocator, node_ptr);
-#if __TBB_CPP11_RVALUE_REF_PRESENT && __TBB_CPP11_VARIADIC_TEMPLATES_PRESENT
         node_allocator_traits::construct(allocator, node_ptr->storage(), std::forward<Args>(args)...);
-#else
-        node_allocator_traits::construct(allocator, node_ptr->storage(), tbb::internal::forward<Arg1>(arg1), tbb::internal::forward<Arg2>(arg2));
-#endif
         guard.dismiss();
         return node_ptr;
     }
@@ -659,23 +649,14 @@ protected:
         return create_node(allocator, key, *t);
     }
 
-#if __TBB_CPP11_RVALUE_REF_PRESENT
     static node* allocate_node_move_construct(node_allocator_type& allocator, const Key &key, const T * t){
         return create_node(allocator, key, std::move(*const_cast<T*>(t)));
     }
-#endif
 
     static node* allocate_node_default_construct(node_allocator_type& allocator, const Key &key, const T * ){
-#if __TBB_CPP11_RVALUE_REF_PRESENT && __TBB_CPP11_VARIADIC_TEMPLATES_PRESENT && __TBB_CPP11_TUPLE_PRESENT
         // Emplace construct an empty T object inside the pair
         return create_node(allocator, std::piecewise_construct,
                            std::forward_as_tuple(key), std::forward_as_tuple());
-#else
-        // Use of a temporary object is impossible, because create_node takes a non-const reference.
-        // copy-initialization is possible because T is already required to be CopyConstructible.
-        T obj = T();
-        return create_node(allocator, key, tbb::internal::move(obj));
-#endif
     }
 
     static node* do_not_allocate_node(node_allocator_type& , const Key &, const T * ){

@@ -36,19 +36,20 @@
 
 namespace tbb {
 
-//! Block of space aligned sufficiently to construct an array T with N elements.
-/** The elements are not constructed or destroyed by this class.
-    @ingroup memory_allocation */
-template<typename T,size_t N=1>
-class __TBB_DEPRECATED_IN_VERBOSE_MODE_MSG("tbb::aligned_space is deprecated, use std::aligned_storage") aligned_space {
+/**
+ * Block of space aligned sufficiently to construct an array T with N elements.
+ * The elements are not constructed or destroyed by this class.\
+ * 
+ * @deprecated use std::aligned_storage.
+*/
+template<typename T, size_t N=1>
+class aligned_space {
 private:
     typedef __TBB_TypeWithAlignmentAtLeastAsStrict(T) element_type;
     element_type array[(sizeof(T)*N+sizeof(element_type)-1)/sizeof(element_type)];
-public:
-    //! Pointer to beginning of array
-    T* begin() const {return internal::punned_cast<T*>(this);}
 
-    //! Pointer to one past last element in array.
+public:
+    T* begin() const {return internal::punned_cast<T*>(this);}
     T* end() const {return begin()+N;}
 };
 
