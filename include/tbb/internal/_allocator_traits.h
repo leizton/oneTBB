@@ -113,18 +113,17 @@ struct allocator_traits {
     }
 
     template<typename PT, typename T1>
-    static void construct(Alloc&, PT* p, __TBB_FORWARDING_REF(T1) t1) {
+    static void construct(Alloc&, PT* p, T1&& t1) {
         ::new (static_cast<void*>(p)) PT(tbb::internal::forward<T1>(t1));
     }
 
     template<typename PT, typename T1, typename T2>
-    static void construct(Alloc&, PT* p, __TBB_FORWARDING_REF(T1) t1, __TBB_FORWARDING_REF(T2) t2) {
+    static void construct(Alloc&, PT* p, T1&& t1, T2&& t2) {
         ::new (static_cast<void*>(p)) PT(tbb::internal::forward<T1>(t1), tbb::internal::forward<T2>(t2));
     }
 
     template<typename PT, typename T1, typename T2, typename T3>
-    static void construct(Alloc&, PT* p, __TBB_FORWARDING_REF(T1) t1,
-                          __TBB_FORWARDING_REF(T2) t2, __TBB_FORWARDING_REF(T3) t3) {
+    static void construct(Alloc&, PT* p, T1&& t1, T2&& t2, T3&& t3) {
         ::new (static_cast<void*>(p)) PT(tbb::internal::forward<T1>(t1), tbb::internal::forward<T2>(t2),
                                          tbb::internal::forward<T3>(t3));
     }

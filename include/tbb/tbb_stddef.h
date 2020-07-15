@@ -513,13 +513,8 @@ T& forward( T& x ) { return x; }
 #endif /* __TBB_CPP11_RVALUE_REF_PRESENT */
 
 // Helper macros to simplify writing templates working with both C++03 and C++11.
-#if __TBB_CPP11_RVALUE_REF_PRESENT
-#define  __TBB_FORWARDING_REF(A) A&&
-#else
-// It is assumed that cv qualifiers, if any, are part of a deduced type.
-// Thus this macro should not be used in public interfaces.
-#define  __TBB_FORWARDING_REF(A) A&
-#endif
+#define __TBB_FORWARDING_REF(A) A&&
+
 #if __TBB_CPP11_VARIADIC_TEMPLATES_PRESENT
 #define __TBB_PARAMETER_PACK ...
 #define __TBB_PACK_EXPANSION(A) A...
