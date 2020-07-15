@@ -66,10 +66,9 @@ namespace interface5 {
     typedef size_t hashcode_t;
     //! Node base type
     struct hash_map_node_base : tbb::internal::no_copy {
-        //! Mutex type
         typedef spin_rw_mutex mutex_t;
-        //! Scoped lock type for mutex
         typedef mutex_t::scoped_lock scoped_t;
+
         //! Next node in chain
         hash_map_node_base *next;
         mutex_t mutex;
@@ -78,6 +77,7 @@ namespace interface5 {
     static hash_map_node_base *const rehash_req = reinterpret_cast<hash_map_node_base*>(size_t(3));
     //! Rehashed empty bucket flag
     static hash_map_node_base *const empty_rehashed = reinterpret_cast<hash_map_node_base*>(size_t(0));
+
     //! base class of concurrent_hash_map
     class hash_map_base {
     public:
@@ -98,18 +98,15 @@ namespace interface5 {
             mutex_t mutex;
             node_base *node_list;
         };
-        //! Count of segments in the first block
+
         static size_type const embedded_block = 1;
-        //! Count of segments in the first block
         static size_type const embedded_buckets = 1<<embedded_block;
-        //! Count of segments in the first block
         static size_type const first_block = 8; //including embedded_block. perfect with bucket size 16, so the allocations are power of 4096
-        //! Size of a pointer / table size
         static size_type const pointers_per_table = sizeof(segment_index_t) * 8; // one segment per bit
-        //! Segment pointer
+
         typedef bucket *segment_ptr_t;
-        //! Segment pointers table type
         typedef segment_ptr_t segments_table_t[pointers_per_table];
+
         //! Hash mask = sum of allocated segment sizes - 1
         atomic<hashcode_t> my_mask;
         //! Segment pointers table. Also prevents false sharing between my_mask and my_size
@@ -463,7 +460,6 @@ namespace interface5 {
     }
 
     //! Range class used with concurrent_hash_map
-    /** @ingroup containers */
     template<typename Iterator>
     class hash_map_range {
         typedef typename Iterator::map_type map_type;
@@ -579,8 +575,7 @@ namespace interface5 {
     - Added equal_range() [const]
     - Added [const_]pointer, [const_]reference, and allocator_type types
     - Added global functions: operator==(), operator!=(), and swap()
-
-    @ingroup containers */
+*/
 template<typename Key, typename T, typename HashCompare, typename Allocator>
 class concurrent_hash_map : protected internal::hash_map_base {
     template<typename Container, typename Value>
