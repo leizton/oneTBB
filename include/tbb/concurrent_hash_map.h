@@ -615,12 +615,6 @@ protected:
         value_type& value() { return *storage(); }
     };
 
-    void delete_node( node_base *n ) {
-        node_allocator_traits::destroy(my_allocator, static_cast<node*>(n)->storage());
-        node_allocator_traits::destroy(my_allocator, static_cast<node*>(n));
-        node_allocator_traits::deallocate(my_allocator, static_cast<node*>(n), 1);
-    }
-
     struct node_scoped_guard : tbb::internal::no_copy {
         node* my_node;
         node_allocator_type& my_alloc;
@@ -645,23 +639,29 @@ protected:
         return node_ptr;
     }
 
-    static node* allocate_node_copy_construct(node_allocator_type& allocator, const Key &key, const T * t){
+    static node* allocate_node_copy_construct(node_allocator_type& allocator, const Key &key, const T * t) {
         return create_node(allocator, key, *t);
     }
 
-    static node* allocate_node_move_construct(node_allocator_type& allocator, const Key &key, const T * t){
+    static node* allocate_node_move_construct(node_allocator_type& allocator, const Key &key, const T * t) {
         return create_node(allocator, key, std::move(*const_cast<T*>(t)));
     }
 
-    static node* allocate_node_default_construct(node_allocator_type& allocator, const Key &key, const T * ){
+    static node* allocate_node_default_construct(node_allocator_type& allocator, const Key &key, const T * ) {
         // Emplace construct an empty T object inside the pair
         return create_node(allocator, std::piecewise_construct,
                            std::forward_as_tuple(key), std::forward_as_tuple());
     }
 
-    static node* do_not_allocate_node(node_allocator_type& , const Key &, const T * ){
+    static node* do_not_allocate_node(node_allocator_type& , const Key &, const T * ) {
         __TBB_ASSERT(false,"this dummy function should not be called");
         return NULL;
+    }
+
+    void delete_node( node_base *n ) {
+        node_allocator_traits::destroy(my_allocator, static_cast<node*>(n)->storage());
+        node_allocator_traits::destroy(my_allocator, static_cast<node*>(n));
+        node_allocator_traits::deallocate(my_allocator, static_cast<node*>(n), 1);
     }
 
     node *search_bucket( const key_type &key, bucket *b ) const {
@@ -701,9 +701,7 @@ protected:
         __TBB_ASSERT( h > 1, "The lowermost buckets can't be rehashed" );
         __TBB_store_with_release(b_new->node_list, internal::empty_rehashed); // mark rehashed
         hashcode_t mask = ( 1u<<__TBB_Log2( h ) ) - 1; // get parent mask from the topmost bit
-#if __TBB_STATISTICS
         my_info_rehashes++; // invocations of rehash_bucket
-#endif
 
         bucket_accessor b_old( this, h & mask );
 
@@ -1230,8 +1228,12 @@ concurrent_hash_map(std::initializer_list<std::pair<const Key, T>>, CompareOrAll
 
 #endif /* __TBB_CPP17_DEDUCTION_GUIDES_PRESENT */
 
+typedef node* (*allocate_node_t)(node_allocator_type& , const Key&, const T*);
+
 template<typename Key, typename T, typename HashCompare, typename A>
-bool concurrent_hash_map<Key,T,HashCompare,A>::lookup( bool op_insert, const Key &key, const T *t, const_accessor *result, bool write, node* (*allocate_node)(node_allocator_type& , const Key&, const T*), node *tmp_n ) {
+bool concurrent_hash_map<Key,T,HashCompare,A>::lookup(
+        bool op_insert, const Key &key, const T *t, const_accessor *result,
+        bool write, allocate_node_t allocate_node, node *tmp_n ) {
     __TBB_ASSERT( !result || !result->my_node, NULL );
     bool return_value;
     hashcode_t const h = my_hash_compare.hash( key );
@@ -1494,11 +1496,9 @@ void concurrent_hash_map<Key,T,HashCompare,A>::clear() {
         node_base *n = bp->node_list;
         __TBB_ASSERT( is_valid(n) || n == internal::empty_rehashed || n == internal::rehash_req, "Broken internal structure" );
         __TBB_ASSERT( *reinterpret_cast<intptr_t*>(&bp->mutex) == 0, "concurrent or unexpectedly terminated operation during clear() execution" );
-#if TBB_USE_PERFORMANCE_WARNINGS || __TBB_STATISTICS
         if( n == internal::empty_rehashed ) empty_buckets++;
         else if( n == internal::rehash_req ) buckets--;
         else if( n->next ) overpopulated_buckets++;
-#endif
 #if __TBB_EXTRA_DEBUG
         for(; is_valid(n); n = n->next ) {
             hashcode_t h = my_hash_compare.hash( static_cast<node*>(n)->value().first );
@@ -1507,8 +1507,6 @@ void concurrent_hash_map<Key,T,HashCompare,A>::clear() {
         }
 #endif
     }
-#if TBB_USE_PERFORMANCE_WARNINGS || __TBB_STATISTICS
-#if __TBB_STATISTICS
     printf( "items=%d buckets: capacity=%d rehashed=%d empty=%d overpopulated=%d"
         " concurrent: resizes=%u rehashes=%u restarts=%u\n",
         current_size, int(m+1), buckets, empty_buckets, overpopulated_buckets,
@@ -1516,21 +1514,15 @@ void concurrent_hash_map<Key,T,HashCompare,A>::clear() {
     my_info_resizes = 0; // concurrent ones
     my_info_restarts = 0; // race collisions
     my_info_rehashes = 0;  // invocations of rehash_bucket
-#endif
     if( buckets > current_size) empty_buckets -= buckets - current_size;
     else overpopulated_buckets -= current_size - buckets; // TODO: load_factor?
     if( !reported && buckets >= 512 && ( 2*empty_buckets > current_size || 2*overpopulated_buckets > current_size ) ) {
         tbb::internal::runtime_warning(
             "Performance is not optimal because the hash function produces bad randomness in lower bits in %s.\nSize: %d  Empties: %d  Overlaps: %d",
-#if __TBB_USE_OPTIONAL_RTTI
-            typeid(*this).name(),
-#else
             "concurrent_hash_map",
-#endif
             current_size, empty_buckets, overpopulated_buckets );
         reported = true;
     }
-#endif
 #endif // TBB_USE_ASSERT || TBB_USE_PERFORMANCE_WARNINGS || __TBB_STATISTICS
     my_size = 0;
     segment_index_t s = segment_index_of( m );
