@@ -420,7 +420,7 @@ namespace interface5 {
             __TBB_ASSERT( hash_map_base::is_valid(my_node), "iterator uninitialized or at end of container?" );
             return my_node->value();
         }
-        Value* operator->() const {return &operator*();}
+        Value* operator->() const {return &operator*(); }
         hash_map_iterator& operator++();
 
         //! Post increment
@@ -479,7 +479,7 @@ namespace interface5 {
         typedef Iterator iterator;
 
         //! True if range is empty.
-        bool empty() const {return my_begin==my_end;}
+        bool empty() const {return my_begin==my_end; }
 
         //! True if range can be partitioned into two subranges.
         bool is_divisible() const {
@@ -513,10 +513,10 @@ namespace interface5 {
             __TBB_ASSERT( grainsize_>0, "grainsize must be positive" );
             set_midpoint();
         }
-        const Iterator& begin() const {return my_begin;}
-        const Iterator& end() const {return my_end;}
+        const Iterator& begin() const {return my_begin; }
+        const Iterator& end() const {return my_end; }
         //! The grain size for this range.
-        size_type grainsize() const {return my_grainsize;}
+        size_type grainsize() const {return my_grainsize; }
     };
 
     template<typename Iterator>
@@ -635,6 +635,8 @@ protected:
         node_scoped_guard guard(node_ptr, allocator);
         node_allocator_traits::construct(allocator, node_ptr);
         node_allocator_traits::construct(allocator, node_ptr->storage(), std::forward<Args>(args)...);
+        // if construct fail，会调用node_ptr的clear
+        // if construct ok，通过dismiss不会调用node_ptr的clear
         guard.dismiss();
         return node_ptr;
     }
@@ -726,21 +728,24 @@ protected:
         }
     }
 
+    // 析构时调用 map 的 clear
     struct call_clear_on_leave {
         concurrent_hash_map* my_ch_map;
         call_clear_on_leave( concurrent_hash_map* a_ch_map ) : my_ch_map(a_ch_map) {}
-        void dismiss() {my_ch_map = 0;}
+        void dismiss() {my_ch_map = 0; }  // 析构时不调用clear
         ~call_clear_on_leave(){
             if (my_ch_map){
                 my_ch_map->clear();
             }
         }
     };
+
 public:
 
     class accessor;
+
     //! Combines data access, locking, and garbage collection.
-    class const_accessor : private node::scoped_t /*which derived from no_copy*/ {
+    class const_accessor : private hash_map_node_base::scoped_t /*which derived from no_copy*/ {
         friend class concurrent_hash_map<Key,T,HashCompare,Allocator>;
         friend class accessor;
     public:
@@ -753,7 +758,7 @@ public:
         //! Set to null
         void release() {
             if( my_node ) {
-                node::scoped_t::release();
+                hash_map_node_base::scoped_t::release();
                 my_node = 0;
             }
         }
@@ -840,7 +845,6 @@ public:
         scope_guard.dismiss();
     }
 
-#if __TBB_CPP11_RVALUE_REF_PRESENT
     //! Move constructor
     concurrent_hash_map( concurrent_hash_map &&table )
         : internal::hash_map_base(), my_allocator(std::move(table.get_allocator()))
@@ -860,7 +864,6 @@ public:
             scope_guard.dismiss();
         }
     }
-#endif //__TBB_CPP11_RVALUE_REF_PRESENT
 
     //! Construction with copying iteration range and given allocator instance
     template<typename I>
@@ -876,30 +879,21 @@ public:
     concurrent_hash_map( I first, I last, const HashCompare& compare, const allocator_type& a = allocator_type() )
         : internal::hash_map_base(), my_allocator(a), my_hash_compare(compare)
     {
-        call_clear_on_leave scope_guard(this);
         internal_copy(first, last, std::distance(first, last));
-        scope_guard.dismiss();
     }
 
-#if __TBB_INITIALIZER_LISTS_PRESENT
     //! Construct empty table with n preallocated buckets. This number serves also as initial concurrency level.
     concurrent_hash_map( std::initializer_list<value_type> il, const allocator_type &a = allocator_type() )
         : internal::hash_map_base(), my_allocator(a)
     {
-        call_clear_on_leave scope_guard(this);
         internal_copy(il.begin(), il.end(), il.size());
-        scope_guard.dismiss();
     }
 
     concurrent_hash_map( std::initializer_list<value_type> il, const HashCompare& compare, const allocator_type& a = allocator_type() )
         : internal::hash_map_base(), my_allocator(a), my_hash_compare(compare)
     {
-        call_clear_on_leave scope_guard(this);
         internal_copy(il.begin(), il.end(), il.size());
-        scope_guard.dismiss();
     }
-
-#endif //__TBB_INITIALIZER_LISTS_PRESENT
 
     //! Assignment
     concurrent_hash_map& operator=( const concurrent_hash_map &table ) {
@@ -912,7 +906,6 @@ public:
         return *this;
     }
 
-#if __TBB_CPP11_RVALUE_REF_PRESENT
     //! Move Assignment
     concurrent_hash_map& operator=( concurrent_hash_map &&table ) {
         if(this != &table) {
@@ -921,17 +914,13 @@ public:
         }
         return *this;
     }
-#endif //__TBB_CPP11_RVALUE_REF_PRESENT
 
-#if __TBB_INITIALIZER_LISTS_PRESENT
     //! Assignment
     concurrent_hash_map& operator=( std::initializer_list<value_type> il ) {
         clear();
         internal_copy(il.begin(), il.end(), il.size());
         return *this;
     }
-#endif //__TBB_INITIALIZER_LISTS_PRESENT
-
 
     //! Rehashes and optionally resizes the whole table.
     /** Useful to optimize performance before or after concurrent operations.
@@ -971,7 +960,7 @@ public:
     bool empty() const { return my_size == 0; }
 
     //! Upper bound on size.
-    size_type max_size() const {return (~size_type(0))/sizeof(node);}
+    size_type max_size() const {return (~size_type(0))/sizeof(node); }
 
     //! Returns the current number of buckets
     size_type bucket_count() const { return my_mask+1; }
@@ -1039,7 +1028,6 @@ public:
         return lookup(/*insert*/true, value.first, &value.second, NULL, /*write=*/false, &allocate_node_copy_construct );
     }
 
-#if __TBB_CPP11_RVALUE_REF_PRESENT
     //! Insert item by copying if there is no such key present already and acquire a read lock on the item.
     /** Returns true if item is new. */
     bool insert( const_accessor &result, value_type && value ) {
@@ -1058,7 +1046,6 @@ public:
         return generic_move_insert(accessor_not_used(), std::move(value));
     }
 
-#if __TBB_CPP11_VARIADIC_TEMPLATES_PRESENT
     //! Insert item by copying if there is no such key present already and acquire a read lock on the item.
     /** Returns true if item is new. */
     template<typename... Args>
@@ -1079,8 +1066,6 @@ public:
     bool emplace( Args&&... args ) {
         return generic_emplace(accessor_not_used(), std::forward<Args>(args)...);
     }
-#endif //__TBB_CPP11_VARIADIC_TEMPLATES_PRESENT
-#endif //__TBB_CPP11_RVALUE_REF_PRESENT
 
     //! Insert range [first, last)
     template<typename I>
@@ -1089,12 +1074,10 @@ public:
             insert( *first );
     }
 
-#if __TBB_INITIALIZER_LISTS_PRESENT
     //! Insert initializer list
     void insert( std::initializer_list<value_type> il ) {
         insert( il.begin(), il.end() );
     }
-#endif //__TBB_INITIALIZER_LISTS_PRESENT
 
     //! Erase item.
     /** Return true if item was erased by particularly this call. */
@@ -1116,30 +1099,26 @@ protected:
     //! Insert or find item and optionally acquire a lock on the item.
     bool lookup(bool op_insert, const Key &key, const T *t, const_accessor *result, bool write,  node* (*allocate_node)(node_allocator_type& ,  const Key &, const T * ), node *tmp_n = 0  ) ;
 
-    struct accessor_not_used { void release(){}};
-    friend const_accessor* accessor_location( accessor_not_used const& ){ return NULL;}
-    friend const_accessor* accessor_location( const_accessor & a )      { return &a;}
+    struct accessor_not_used { void release(){} };
+    friend const_accessor* accessor_location( accessor_not_used const& ){ return NULL; }
+    friend const_accessor* accessor_location( const_accessor & a )      { return &a; }
 
-    friend bool is_write_access_needed( accessor const& )           { return true;}
-    friend bool is_write_access_needed( const_accessor const& )     { return false;}
-    friend bool is_write_access_needed( accessor_not_used const& )  { return false;}
+    friend bool is_write_access_needed( accessor const& )           { return true; }
+    friend bool is_write_access_needed( const_accessor const& )     { return false; }
+    friend bool is_write_access_needed( accessor_not_used const& )  { return false; }
 
-#if __TBB_CPP11_RVALUE_REF_PRESENT
     template<typename Accessor>
     bool generic_move_insert( Accessor && result, value_type && value ) {
         result.release();
         return lookup(/*insert*/true, value.first, &value.second, accessor_location(result), is_write_access_needed(result), &allocate_node_move_construct );
     }
 
-#if __TBB_CPP11_VARIADIC_TEMPLATES_PRESENT
     template<typename Accessor, typename... Args>
     bool generic_emplace( Accessor && result, Args &&... args ) {
         result.release();
         node * node_ptr = create_node(my_allocator, std::forward<Args>(args)...);
         return lookup(/*insert*/true, node_ptr->value().first, NULL, accessor_location(result), is_write_access_needed(result), &do_not_allocate_node, node_ptr );
     }
-#endif //__TBB_CPP11_VARIADIC_TEMPLATES_PRESENT
-#endif //__TBB_CPP11_RVALUE_REF_PRESENT
 
     //! delete item by accessor
     bool exclude( const_accessor &item_accessor );
@@ -1154,7 +1133,6 @@ protected:
     template<typename I>
     void internal_copy( I first, I last, size_type reserve_size );
 
-#if __TBB_CPP11_RVALUE_REF_PRESENT
     // A compile-time dispatch to allow move assignment of containers with non-movable value_type if POCMA is true_type
     void internal_move_assign(concurrent_hash_map&& other, tbb::internal::traits_true_type) {
         tbb::internal::allocator_move_assignment(my_allocator, other.my_allocator, tbb::internal::traits_true_type());
@@ -1169,7 +1147,6 @@ protected:
             internal_copy(std::make_move_iterator(other.begin()), std::make_move_iterator(other.end()), other.size());
         }
     }
-#endif
 
     //! Fast find when no concurrent erasure is used. For internal use inside TBB only!
     /** Return pointer to item with given key, or NULL if no such item exists.
