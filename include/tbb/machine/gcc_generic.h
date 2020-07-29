@@ -211,11 +211,13 @@ struct machine_load_store_seq_cst {
 #define __TBB_UnlockByte    __TBB_machine_unlock_byte
 
 // __builtin_clz counts the number of leading zeroes
+// 计算 x 第一个 1 bit 前面有多少个 0 bit
 namespace tbb{ namespace internal { namespace gcc_builtins {
     inline int clz(unsigned int x){ return __builtin_clz(x); }
     inline int clz(unsigned long int x){ return __builtin_clzl(x); }
     inline int clz(unsigned long long int x){ return __builtin_clzll(x); }
 }}}
+
 // logarithm is the index of the most significant non-zero bit
 static inline intptr_t __TBB_machine_lg( uintptr_t x ) {
     // If P is a power of 2 and x<P, then (P-1)-x == (P-1) XOR x

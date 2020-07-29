@@ -678,7 +678,9 @@ protected:
     class bucket_accessor : public bucket::scoped_t {
         bucket *my_b;
     public:
-        bucket_accessor( concurrent_hash_map *base, const hashcode_t h, bool writer = false ) { acquire( base, h, writer ); }
+        bucket_accessor( concurrent_hash_map *base, const hashcode_t h, bool writer = false ) {
+            acquire( base, h, writer );
+        }
         //! find a bucket by masked hashcode, optionally rehash, and acquire the lock
         inline void acquire( concurrent_hash_map *base, const hashcode_t h, bool writer = false ) {
             my_b = base->get_bucket( h );
@@ -686,7 +688,8 @@ protected:
             if( itt_load_word_with_acquire(my_b->node_list) == internal::rehash_req
                 && try_acquire( my_b->mutex, /*write=*/true ) )
             {
-                if( my_b->node_list == internal::rehash_req ) base->rehash_bucket( my_b, h ); //recursive rehashing
+                if( my_b->node_list == internal::rehash_req )
+                    base->rehash_bucket( my_b, h ); //recursive rehashing
             }
             else bucket::scoped_t::acquire( my_b->mutex, writer );
             __TBB_ASSERT( my_b->node_list != internal::rehash_req, NULL);
@@ -1210,7 +1213,8 @@ typedef node* (*allocate_node_t)(node_allocator_type& , const Key&, const T*);
 template<typename Key, typename T, typename HashCompare, typename A>
 bool concurrent_hash_map<Key,T,HashCompare,A>::lookup(
         bool op_insert, const Key &key, const T *t, const_accessor *result,
-        bool write, allocate_node_t allocate_node, node *tmp_n ) {
+        bool write, allocate_node_t allocate_node, node *tmp_n )
+{
     __TBB_ASSERT( !result || !result->my_node, NULL );
     bool return_value;
     hashcode_t const h = my_hash_compare.hash( key );
