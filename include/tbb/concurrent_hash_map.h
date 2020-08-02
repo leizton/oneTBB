@@ -1218,15 +1218,13 @@ bool concurrent_hash_map<Key,T,HashCompare,A>::lookup(
     __TBB_ASSERT( !result || !result->my_node, NULL );
     bool return_value;
     hashcode_t const h = my_hash_compare.hash( key );
-    hashcode_t m = (hashcode_t) itt_load_word_with_acquire( my_mask );
     segment_index_t grow_segment = 0;
     node *n;
     restart:
     {//lock scope
-        __TBB_ASSERT((m&(m+1))==0, "data structure is invalid");
         return_value = false;
         // get bucket
-        bucket_accessor b( this, h & m );
+        bucket_accessor b( this, h);
 
         // find a node
         n = search_bucket( key, b() );
@@ -1269,7 +1267,6 @@ bool concurrent_hash_map<Key,T,HashCompare,A>::lookup(
                 if( !backoff.bounded_pause() ) {
                     // the wait takes really long, restart the operation
                     b.release();
-                    __TBB_ASSERT( !op_insert || !return_value, "Can't acquire new item in locked bucket?" );
                     __TBB_Yield();
                     m = (hashcode_t) itt_load_word_with_acquire( my_mask );
                     goto restart;
