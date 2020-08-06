@@ -1216,7 +1216,7 @@ bool concurrent_hash_map<Key, T, HashCompare, A>::lookup(
     hashcode_t const h = my_hash_compare.hash(key);
     segment_index_t grow_segment = 0;
     node* n;
-restart : { //lock scope
+restart : { // lock scope
     return_value = false;
     // get bucket
     bucket_accessor b(this, h);
@@ -1270,7 +1270,7 @@ exists:
             }
         }
     }
-} //lock scope
+    } // lock scope
     result->my_node = n;
     result->my_hash = h;
 check_growth:
