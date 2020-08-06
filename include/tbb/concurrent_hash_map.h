@@ -254,26 +254,24 @@ class hash_map_base {
     inline bool check_mask_race(const hashcode_t h, hashcode_t& m) const {
         hashcode_t m_now, m_old = m;
         m_now = (hashcode_t)itt_load_word_with_acquire(my_mask);
-        if (m_old != m_now)
-            return check_rehashing_collision(h, m_old, m = m_now);
+        if (m_old != m_now) {
+            m = m_now;
+            return check_rehashing_collision(h, m_old, m_now);
+        }
         return false;
     }
 
     //! Process mask race, check for rehashing collision
     bool check_rehashing_collision(const hashcode_t h, hashcode_t m_old, hashcode_t m) const {
-        __TBB_ASSERT(m_old != m, NULL); // TODO?: m arg could be optimized out by passing h = h&m
+        __TBB_ASSERT(m_old != m, NULL);
         if ((h & m_old) != (h & m)) {   // mask changed for this hashcode, rare event
             // condition above proves that 'h' has some other bits set beside 'm_old'
             // find next applicable mask after m_old    //TODO: look at bsl instruction
-            for (++m_old; !(h & m_old); m_old <<= 1) // at maximum few rounds depending on the first block size
-                ;
+            for (++m_old; !(h & m_old); m_old <<= 1); // at maximum few rounds depending on the first block size
             m_old = (m_old << 1) - 1; // get full mask from a bit
             __TBB_ASSERT((m_old & (m_old + 1)) == 0 && m_old <= m, NULL);
             // check whether it is rehashing/ed
             if (itt_load_word_with_acquire(get_bucket(h & m_old)->node_list) != rehash_req) {
-#if __TBB_STATISTICS
-                my_info_restarts++; // race collisions
-#endif
                 return true;
             }
         }
